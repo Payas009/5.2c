@@ -1,0 +1,54 @@
+import rospy
+from duckietown_msgs.msg import Twist2DStamped, WheelEncoderStamped
+from math import pi
+
+class ClosedLoopSquareNode:
+    def __init__(self):
+        rospy.init_node('closed_loop_square_node')
+        self.pub_car_cmd = rospy.Publisher('/payjay/car_cmd', Twist2DStamped, queue_size=1)
+        self.sub_encoder_ticks = rospy.Subscriber('/payjay/wheel_encoder_node/tick', WheelEncoderStamped, self.callback_encoder_ticks)
+        self.encoder_resolution = 1000  # Example encoder resolution, adjust as per your robot
+        self.wheel_radius = 0.03  # Example wheel radius in meters, adjust as per your robot
+        self.wheelbase = 0.2  # Example wheelbase in meters, adjust as per your robot
+        self.linear_speed = 0.1  # Example linear speed in m/s, adjust as per your requirement
+        self.angular_speed = 1.0  # Example angular speed in rad/s, adjust as per your requirement
+        self.distance_to_move = 1.0  # Example distance to move in meters for one side of the square
+
+    def callback_encoder_ticks(self, msg):
+        ticks = msg.data
+        distance = (2 * pi * self.wheel_radius * ticks) / self.encoder_resolution
+        if distance >= self.distance_to_move:
+            self.stop_robot()
+
+    def move_forward(self):
+        twist_msg = Twist2DStamped()
+        twist_msg.v = self.linear_speed
+        twist_msg.omega = 0.0
+        self.pub_car_cmd.publish(twist_msg)
+
+    def turn_left(self):
+        twist_msg = Twist2DStamped()
+        twist_msg.v = 0.0
+        twist_msg.omega = self.angular_speed
+        self.pub_car_cmd.publish(twist_msg)
+
+    def stop_robot(self):
+        twist_msg = Twist2DStamped()
+        twist_msg.v = 0.0
+        twist_msg.omega = 0.0
+        self.pub_car_cmd.publish(twist_msg)
+
+    def run(self):
+        rospy.sleep(1)  # Wait for subscriber to initialize
+        for _ in range(4):
+            self.move_forward()
+            rospy.sleep(self.distance_to_move / self.linear_speed)  # Adjust sleep duration based on distance and speed
+            self.stop_robot()
+            rospy.sleep(1)  # Pause between movements for stability
+            self.turn_left()
+            rospy.sleep(1)  # Pause between movements for stability
+
+if __name__ == '__main__':
+    node = ClosedLoopSquareNode()
+    node.run()
+    rospy.spin()
